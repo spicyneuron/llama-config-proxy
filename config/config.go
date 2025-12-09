@@ -104,9 +104,9 @@ type Route struct {
 
 // Action defines a transformation to apply
 type Action struct {
-	// Matching criteria
-	MatchBody    map[string]PatternField `yaml:"match_body,omitempty"`
-	MatchHeaders map[string]PatternField `yaml:"match_headers,omitempty"`
+	// Matching criteria (new unified approach)
+	When    *BoolExpr  `yaml:"when,omitempty"`
+	WhenAny []BoolExpr `yaml:"when_any,omitempty"` // Sugar for OR
 
 	// Transformations
 	Template string         `yaml:"template,omitempty"`
@@ -114,6 +114,19 @@ type Action struct {
 	Default  map[string]any `yaml:"default,omitempty"`
 	Delete   []string       `yaml:"delete,omitempty"`
 	Stop     bool           `yaml:"stop,omitempty"`
+}
+
+// BoolExpr represents a boolean expression tree for matching requests
+type BoolExpr struct {
+	// Leaf matchers (implicit AND when multiple fields present)
+	Body    map[string]PatternField `yaml:"body,omitempty"`
+	Query   map[string]PatternField `yaml:"query,omitempty"`
+	Headers map[string]PatternField `yaml:"headers,omitempty"`
+
+	// Boolean operators
+	And []BoolExpr `yaml:"and,omitempty"`
+	Or  []BoolExpr `yaml:"or,omitempty"`
+	Not *BoolExpr  `yaml:"not,omitempty"`
 }
 
 // PatternField can be a single pattern or array of patterns
@@ -167,6 +180,152 @@ func (p PatternField) Matches(input string) bool {
 // Len returns the number of patterns
 func (p PatternField) Len() int {
 	return len(p.Patterns)
+}
+
+// Validate recursively validates and compiles all patterns in the BoolExpr tree
+func (b *BoolExpr) Validate() error {
+	if b == nil {
+		return nil
+	}
+
+	// Validate leaf matchers and update the map with compiled patterns
+	for key, pattern := range b.Body {
+		if err := pattern.Validate(); err != nil {
+			return fmt.Errorf("invalid body pattern for '%s': %w", key, err)
+		}
+		b.Body[key] = pattern // Update map with compiled pattern
+	}
+	for key, pattern := range b.Query {
+		if err := pattern.Validate(); err != nil {
+			return fmt.Errorf("invalid query pattern for '%s': %w", key, err)
+		}
+		b.Query[key] = pattern // Update map with compiled pattern
+	}
+	for key, pattern := range b.Headers {
+		if err := pattern.Validate(); err != nil {
+			return fmt.Errorf("invalid headers pattern for '%s': %w", key, err)
+		}
+		b.Headers[key] = pattern // Update map with compiled pattern
+	}
+
+	// Validate boolean operators recursively
+	for i := range b.And {
+		if err := b.And[i].Validate(); err != nil {
+			return fmt.Errorf("invalid AND expression at index %d: %w", i, err)
+		}
+	}
+	for i := range b.Or {
+		if err := b.Or[i].Validate(); err != nil {
+			return fmt.Errorf("invalid OR expression at index %d: %w", i, err)
+		}
+	}
+	if b.Not != nil {
+		if err := b.Not.Validate(); err != nil {
+			return fmt.Errorf("invalid NOT expression: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// Evaluate evaluates the boolean expression against request data
+// Returns true if the expression matches, false otherwise
+func (b *BoolExpr) Evaluate(body map[string]any, headers map[string]string, query map[string]string) bool {
+	if b == nil {
+		return true // nil expression always matches
+	}
+
+	// Convert body to strings for pattern matching
+	bodyStrings := toStringMap(body)
+
+	// Normalize header keys to lowercase for case-insensitive matching
+	normalizedHeaders := make(map[string]string, len(headers))
+	for key, value := range headers {
+		normalizedHeaders[strings.ToLower(key)] = value
+	}
+
+	// Evaluate leaf matchers (implicit AND)
+	if !b.evaluateLeafMatchers(bodyStrings, normalizedHeaders, query) {
+		return false
+	}
+
+	// Evaluate boolean operators
+	if len(b.And) > 0 {
+		for _, expr := range b.And {
+			if !expr.Evaluate(body, headers, query) {
+				return false
+			}
+		}
+	}
+
+	if len(b.Or) > 0 {
+		matched := false
+		for _, expr := range b.Or {
+			if expr.Evaluate(body, headers, query) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+
+	if b.Not != nil {
+		if b.Not.Evaluate(body, headers, query) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// evaluateLeafMatchers checks body, query, and header matchers (all must match - implicit AND)
+func (b *BoolExpr) evaluateLeafMatchers(bodyStrings map[string]string, normalizedHeaders map[string]string, query map[string]string) bool {
+	// Check body matchers
+	for key, pattern := range b.Body {
+		actualValue, exists := bodyStrings[key]
+		if !exists {
+			return false
+		}
+		if !pattern.Matches(actualValue) {
+			return false
+		}
+	}
+
+	// Check query matchers
+	for key, pattern := range b.Query {
+		actualValue, exists := query[key]
+		if !exists {
+			return false
+		}
+		if !pattern.Matches(actualValue) {
+			return false
+		}
+	}
+
+	// Check header matchers (case-insensitive keys)
+	for key, pattern := range b.Headers {
+		normalizedKey := strings.ToLower(key)
+		actualValue, exists := normalizedHeaders[normalizedKey]
+		if !exists {
+			return false
+		}
+		if !pattern.Matches(actualValue) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// toStringMap converts map[string]any to map[string]string for pattern matching
+func toStringMap(data map[string]any) map[string]string {
+	result := make(map[string]string, len(data))
+	for key, value := range data {
+		result[key] = fmt.Sprintf("%v", value)
+	}
+	return result
 }
 
 // Load loads and merges one or more config files

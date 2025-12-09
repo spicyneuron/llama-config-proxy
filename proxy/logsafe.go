@@ -3,6 +3,7 @@ package proxy
 import (
 	"bytes"
 	"encoding/json"
+	"net/url"
 	"strings"
 )
 
@@ -45,4 +46,16 @@ func sanitizeHeaders(headers map[string][]string) map[string][]string {
 func isAuthHeader(key string) bool {
 	l := strings.ToLower(key)
 	return l == "authorization" || l == "x-api-key" || l == "api-key" || l == "x-auth-token"
+}
+
+// extractQueryParams converts URL query parameters to a map[string]string,
+// taking only the first value for each key.
+func extractQueryParams(u *url.URL) map[string]string {
+	result := make(map[string]string)
+	for key, values := range u.Query() {
+		if len(values) > 0 {
+			result[key] = values[0]
+		}
+	}
+	return result
 }

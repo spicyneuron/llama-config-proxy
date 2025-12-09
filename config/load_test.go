@@ -274,8 +274,9 @@ proxy:
 		"messages": []any{map[string]string{"role": "user", "content": "test"}},
 	}
 	headers := make(map[string]string)
+	query := make(map[string]string)
 
-	modified, appliedValues := ProcessRequest(data, headers, cfg.Proxies[0].Routes[0].Compiled, 0, "", "")
+	modified, appliedValues := ProcessRequest(data, headers, query, cfg.Proxies[0].Routes[0].Compiled, 0, "", "")
 
 	if !modified {
 		t.Error("Expected template to be applied")

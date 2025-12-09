@@ -5,9 +5,9 @@
   target_path: /v1/chat/completions
 
   on_request:
-    # Aliases
-    - match_body:
-        model: ^(default)$
+    # Aliases - map common names to actual models
+    - when:
+        body: { model: "^(default)$" }
       merge:
         model: 230-minimax-m2
 

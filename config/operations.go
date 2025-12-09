@@ -23,36 +23,26 @@ type CompiledRoute struct {
 
 // ActionExec represents an action during execution (converted from Action)
 type ActionExec struct {
-	MatchBody    map[string]PatternField
-	MatchHeaders map[string]PatternField
-	Template     string
-	Merge        map[string]any
-	Default      map[string]any
-	Delete       []string
-	Stop         bool
-}
-
-// toStringMap converts map[string]any to map[string]string for pattern matching
-func toStringMap(data map[string]any) map[string]string {
-	result := make(map[string]string, len(data))
-	for key, value := range data {
-		result[key] = fmt.Sprintf("%v", value)
-	}
-	return result
+	When     *BoolExpr
+	Template string
+	Merge    map[string]any
+	Default  map[string]any
+	Delete   []string
+	Stop     bool
 }
 
 // ProcessRequest applies all request actions to data
-func ProcessRequest(data map[string]any, headers map[string]string, route *CompiledRoute, ruleIndex int, method, path string) (bool, map[string]any) {
-	return processActions("request", data, headers, ruleIndex, method, path, route.OnRequest, route.OnRequestTemplates)
+func ProcessRequest(data map[string]any, headers map[string]string, query map[string]string, route *CompiledRoute, ruleIndex int, method, path string) (bool, map[string]any) {
+	return processActions("request", data, headers, query, ruleIndex, method, path, route.OnRequest, route.OnRequestTemplates)
 }
 
 // ProcessResponse applies all response actions to data
-func ProcessResponse(data map[string]any, headers map[string]string, route *CompiledRoute, ruleIndex int, method, path string) (bool, map[string]any) {
-	return processActions("response", data, headers, ruleIndex, method, path, route.OnResponse, route.OnResponseTemplates)
+func ProcessResponse(data map[string]any, headers map[string]string, query map[string]string, route *CompiledRoute, ruleIndex int, method, path string) (bool, map[string]any) {
+	return processActions("response", data, headers, query, ruleIndex, method, path, route.OnResponse, route.OnResponseTemplates)
 }
 
 // processActions applies actions to data with their compiled templates
-func processActions(phase string, data map[string]any, headers map[string]string, ruleIndex int, method, path string, operations []ActionExec, templates []*template.Template) (bool, map[string]any) {
+func processActions(phase string, data map[string]any, headers map[string]string, query map[string]string, ruleIndex int, method, path string, operations []ActionExec, templates []*template.Template) (bool, map[string]any) {
 	appliedValues := make(map[string]any)
 	anyApplied := false
 	addedKeys := make([]string, 0)
@@ -60,47 +50,9 @@ func processActions(phase string, data map[string]any, headers map[string]string
 	deletedKeys := make([]string, 0)
 	opExecuted := 0
 
-	// Convert body data to strings for pattern matching
-	bodyStrings := toStringMap(data)
-
 	for i, op := range operations {
-		// Check body matching
-		bodyMatch := true
-		if len(op.MatchBody) > 0 {
-			for key, pattern := range op.MatchBody {
-				actualValue, exists := bodyStrings[key]
-				if !exists {
-					bodyMatch = false
-					break
-				}
-				if !pattern.Matches(actualValue) {
-					bodyMatch = false
-					break
-				}
-			}
-		}
-
-		if !bodyMatch {
-			continue
-		}
-
-		// Check headers matching
-		headersMatch := true
-		if len(op.MatchHeaders) > 0 {
-			for key, pattern := range op.MatchHeaders {
-				actualValue, exists := headers[key]
-				if !exists {
-					headersMatch = false
-					break
-				}
-				if !pattern.Matches(actualValue) {
-					headersMatch = false
-					break
-				}
-			}
-		}
-
-		if !headersMatch {
+		// Check if action's when condition matches
+		if op.When != nil && !op.When.Evaluate(data, headers, query) {
 			continue
 		}
 

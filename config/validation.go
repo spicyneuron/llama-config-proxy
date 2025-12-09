@@ -89,22 +89,21 @@ func validateRoute(route *Route, index int) error {
 }
 
 func validateAction(op *Action, ruleIndex, opIndex int, opType string) error {
-	// Validate match_body patterns
-	for key := range op.MatchBody {
-		patterns := op.MatchBody[key]
-		if err := patterns.Validate(); err != nil {
-			return fmt.Errorf("route %d %s %d match_body '%s': %w", ruleIndex, opType, opIndex, key, err)
-		}
-		op.MatchBody[key] = patterns
+	// Check for mutual exclusivity
+	if op.When != nil && len(op.WhenAny) > 0 {
+		return fmt.Errorf("route %d %s %d: cannot specify both when and when_any", ruleIndex, opType, opIndex)
 	}
 
-	// Validate match_headers patterns
-	for key := range op.MatchHeaders {
-		patterns := op.MatchHeaders[key]
-		if err := patterns.Validate(); err != nil {
-			return fmt.Errorf("route %d %s %d match_headers '%s': %w", ruleIndex, opType, opIndex, key, err)
+	// Convert when_any to when with OR
+	if len(op.WhenAny) > 0 {
+		op.When = &BoolExpr{Or: op.WhenAny}
+	}
+
+	// Validate when expression if present
+	if op.When != nil {
+		if err := op.When.Validate(); err != nil {
+			return fmt.Errorf("route %d %s %d when: %w", ruleIndex, opType, opIndex, err)
 		}
-		op.MatchHeaders[key] = patterns
 	}
 
 	// Template is a valid standalone action

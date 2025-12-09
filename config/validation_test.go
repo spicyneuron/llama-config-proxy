@@ -316,33 +316,39 @@ func TestValidateAction(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "valid match_body filter",
+			name: "valid when body filter",
 			op: Action{
-				MatchBody: map[string]PatternField{
-					"model": newPatternField("llama.*"),
+				When: &BoolExpr{
+					Body: map[string]PatternField{
+						"model": newPatternField("llama.*"),
+					},
 				},
 				Merge: map[string]any{"temperature": 0.7},
 			},
 			wantErr: false,
 		},
 		{
-			name: "valid match_headers filter",
+			name: "valid when headers filter",
 			op: Action{
-				MatchHeaders: map[string]PatternField{
-					"Content-Type": newPatternField("application/json"),
+				When: &BoolExpr{
+					Headers: map[string]PatternField{
+						"Content-Type": newPatternField("application/json"),
+					},
 				},
 				Merge: map[string]any{"temperature": 0.7},
 			},
 			wantErr: false,
 		},
 		{
-			name: "valid match_body and match_headers",
+			name: "valid when body and headers",
 			op: Action{
-				MatchBody: map[string]PatternField{
-					"model": newPatternField("gpt.*"),
-				},
-				MatchHeaders: map[string]PatternField{
-					"X-API-Key": newPatternField(".*"),
+				When: &BoolExpr{
+					Body: map[string]PatternField{
+						"model": newPatternField("gpt.*"),
+					},
+					Headers: map[string]PatternField{
+						"X-API-Key": newPatternField(".*"),
+					},
 				},
 				Merge: map[string]any{"temperature": 0.7},
 			},
@@ -355,10 +361,12 @@ func TestValidateAction(t *testing.T) {
 			errMsg:  "must have at least one action",
 		},
 		{
-			name: "invalid regex in match_body",
+			name: "invalid regex in when body",
 			op: Action{
-				MatchBody: map[string]PatternField{
-					"model": newPatternField("[invalid"),
+				When: &BoolExpr{
+					Body: map[string]PatternField{
+						"model": newPatternField("[invalid"),
+					},
 				},
 				Merge: map[string]any{"temp": 0.7},
 			},
@@ -366,10 +374,12 @@ func TestValidateAction(t *testing.T) {
 			errMsg:  "invalid regex pattern",
 		},
 		{
-			name: "invalid regex in match_headers",
+			name: "invalid regex in when headers",
 			op: Action{
-				MatchHeaders: map[string]PatternField{
-					"Content-Type": newPatternField("[invalid"),
+				When: &BoolExpr{
+					Headers: map[string]PatternField{
+						"Content-Type": newPatternField("[invalid"),
+					},
 				},
 				Merge: map[string]any{"temp": 0.7},
 			},

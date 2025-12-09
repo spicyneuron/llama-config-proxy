@@ -33,8 +33,10 @@ func TestModifyStreamingResponse_OllamaFormat(t *testing.T) {
 					TargetPath: "/v1/test",
 					OnResponse: []config.Action{
 						{
-							MatchBody: map[string]config.PatternField{
-								"role": {Patterns: []string{".*"}},
+							When: &config.BoolExpr{
+								Body: map[string]config.PatternField{
+									"role": {Patterns: []string{".*"}},
+								},
 							},
 							Merge: map[string]any{
 								"transformed": true,

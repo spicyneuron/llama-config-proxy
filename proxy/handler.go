@@ -128,6 +128,8 @@ func ModifyRequest(req *http.Request, routes []config.Route) {
 		}
 	}
 
+	query := extractQueryParams(req.URL)
+
 	matchedRoutes, matchedRouteIndices := MatchRoutes(req, routes)
 	var matchedResponseRoutes responseRouteContext
 	anyModified := false
@@ -151,7 +153,7 @@ func ModifyRequest(req *http.Request, routes []config.Route) {
 			continue
 		}
 
-		modified, appliedValues := config.ProcessRequest(data, headers, rule.Compiled, routeIndex, method, path)
+		modified, appliedValues := config.ProcessRequest(data, headers, query, rule.Compiled, routeIndex, method, path)
 
 		if modified {
 			anyModified = true
@@ -298,13 +300,15 @@ func ModifyResponse(resp *http.Response, routes []config.Route) error {
 		}
 	}
 
+	query := extractQueryParams(resp.Request.URL)
+
 	anyModified := false
 	appliedValues := make(map[string]any)
 	for i, route := range matchedRoutes {
 		if len(route.OnResponse) == 0 || route.Compiled == nil {
 			continue
 		}
-		modified, vals := config.ProcessResponse(data, headers, route.Compiled, matchedRouteIndices[i], method, path)
+		modified, vals := config.ProcessResponse(data, headers, query, route.Compiled, matchedRouteIndices[i], method, path)
 		if modified {
 			anyModified = true
 		}
@@ -375,6 +379,8 @@ func ModifyStreamingResponse(resp *http.Response, routes []*config.Route, routeI
 			}
 		}
 
+		query := extractQueryParams(resp.Request.URL)
+
 		lineNum := 0
 		for scanner.Scan() {
 			lineNum++
@@ -434,7 +440,7 @@ func ModifyStreamingResponse(resp *http.Response, routes []*config.Route, routeI
 				if rule == nil || len(rule.OnResponse) == 0 || rule.Compiled == nil {
 					continue
 				}
-				changed, vals := config.ProcessResponse(data, headers, rule.Compiled, routeIndices[i], method, path)
+				changed, vals := config.ProcessResponse(data, headers, query, rule.Compiled, routeIndices[i], method, path)
 				if changed {
 					modified = true
 					for k, v := range vals {

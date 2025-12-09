@@ -36,7 +36,16 @@ func TestModifyResponseAppliesAllMatchedRules(t *testing.T) {
 			t.Fatalf("paths validate: %v", err)
 		}
 		rules[i].Compiled = &config.CompiledRoute{
-			OnResponse:          []config.ActionExec{config.ActionExec(rules[i].OnResponse[0])},
+			OnResponse: []config.ActionExec{
+				{
+					When:     rules[i].OnResponse[0].When,
+					Template: rules[i].OnResponse[0].Template,
+					Merge:    rules[i].OnResponse[0].Merge,
+					Default:  rules[i].OnResponse[0].Default,
+					Delete:   rules[i].OnResponse[0].Delete,
+					Stop:     rules[i].OnResponse[0].Stop,
+				},
+			},
 			OnResponseTemplates: []*template.Template{nil},
 		}
 	}

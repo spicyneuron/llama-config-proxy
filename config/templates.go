@@ -33,7 +33,14 @@ func compileRouteTemplates(routes []Route, prefix string) error {
 
 		// Convert OnRequest operations
 		for j, op := range route.OnRequest {
-			compiled.OnRequest[j] = convertAction(op)
+			compiled.OnRequest[j] = ActionExec{
+				When:     op.When,
+				Template: op.Template,
+				Merge:    op.Merge,
+				Default:  op.Default,
+				Delete:   op.Delete,
+				Stop:     op.Stop,
+			}
 
 			if op.Template != "" {
 				tmpl, err := template.New(fmt.Sprintf("%s_rule_%d_request_%d", prefix, i, j)).
@@ -51,7 +58,14 @@ func compileRouteTemplates(routes []Route, prefix string) error {
 
 		// Convert OnResponse operations
 		for j, op := range route.OnResponse {
-			compiled.OnResponse[j] = convertAction(op)
+			compiled.OnResponse[j] = ActionExec{
+				When:     op.When,
+				Template: op.Template,
+				Merge:    op.Merge,
+				Default:  op.Default,
+				Delete:   op.Delete,
+				Stop:     op.Stop,
+			}
 
 			if op.Template != "" {
 				tmpl, err := template.New(fmt.Sprintf("%s_rule_%d_response_%d", prefix, i, j)).
@@ -70,8 +84,4 @@ func compileRouteTemplates(routes []Route, prefix string) error {
 		route.Compiled = compiled
 	}
 	return nil
-}
-
-func convertAction(op Action) ActionExec {
-	return ActionExec(op)
 }

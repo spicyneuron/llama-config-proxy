@@ -1,15 +1,15 @@
 # Recommended settings for model families
 
-- match_body:
-    model: deepseek
+- when:
+    body: { model: "deepseek" }
   merge:
     temperature: 0.6
     top_p: 0.95
     min_p: 0
   stop: true
 
-- match_body:
-    model: gemma-?3
+- when:
+    body: { model: "gemma-?3" }
   merge:
     temperature: 1
     top_k: 64
@@ -17,8 +17,8 @@
     min_p: 0
   stop: true
 
-- match_body:
-    model: glm-?4\.6|minimax-m2
+- when:
+    body: { model: 'glm-?4\.6|minimax-m2' }
   merge:
     temperature: 1
     top_k: 40
@@ -26,15 +26,15 @@
     min_p: 0
   stop: true
 
-- match_body:
-    model: glm-?4\.5
+- when:
+    body: { model: 'glm-?4\.5' }
   merge:
     temperature: 0.6
     top_p: 1
   stop: true
 
-- match_body:
-    model: gpt-oss
+- when:
+    body: { model: "gpt-oss" }
   merge:
     temperature: 1
     top_k: 0
@@ -42,8 +42,8 @@
     min_p: 0
   stop: true
 
-- match_body:
-    model: qwen-?3-?code
+- when:
+    body: { model: "qwen-?3-?code" }
   merge:
     temperature: 0.7
     top_k: 20
@@ -52,8 +52,8 @@
     repeat_penalty: 1.05
   stop: true
 
-- match_body:
-    model: qwen-?3-?vl-instruct
+- when:
+    body: { model: "qwen-?3-?vl-instruct" }
   merge:
     temperature: 0.7
     top_k: 20
@@ -62,8 +62,8 @@
     presence_penalty: 1.5
   stop: true
 
-- match_body:
-    model: qwen-?3-?instruct|intern-?3\.5
+- when:
+    body: { model: 'qwen-?3-?instruct|intern-?3\.5' }
   merge:
     temperature: 0.7
     top_k: 20
@@ -71,8 +71,8 @@
     min_p: 0
   stop: true
 
-- match_body:
-    model: qwen-?3-?think
+- when:
+    body: { model: "qwen-?3-?think" }
   merge:
     temperature: 0.6
     top_k: 20

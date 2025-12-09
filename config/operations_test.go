@@ -15,14 +15,18 @@ func TestProcessActionsMatchHeadersDeleteAndStop(t *testing.T) {
 	// Build execution operations directly to avoid template compilation noise
 	ops := []ActionExec{
 		{
-			MatchHeaders: map[string]PatternField{
-				"X-Env": envPattern,
+			When: &BoolExpr{
+				Headers: map[string]PatternField{
+					"X-Env": envPattern,
+				},
 			},
 			Merge: map[string]any{"seen": 1},
 		},
 		{
-			MatchBody: map[string]PatternField{
-				"remove_me": removePattern,
+			When: &BoolExpr{
+				Body: map[string]PatternField{
+					"remove_me": removePattern,
+				},
 			},
 			Delete: []string{"remove_me"},
 			Stop:   true, // Halt before the final op
@@ -34,12 +38,13 @@ func TestProcessActionsMatchHeadersDeleteAndStop(t *testing.T) {
 	}
 
 	headers := map[string]string{"X-Env": "prod"}
+	query := map[string]string{}
 	body := map[string]any{
 		"keep":      "x",
 		"remove_me": "y",
 	}
 
-	modified, applied := processActions("test", body, headers, 0, "", "", ops, nil)
+	modified, applied := processActions("test", body, headers, query, 0, "", "", ops, nil)
 	if !modified {
 		t.Fatal("expected modifications to be applied")
 	}
@@ -74,8 +79,10 @@ func TestProcessResponseHeaderFilter(t *testing.T) {
 	compiled := &CompiledRoute{
 		OnResponse: []ActionExec{
 			{
-				MatchHeaders: map[string]PatternField{
-					"Content-Type": ctPattern,
+				When: &BoolExpr{
+					Headers: map[string]PatternField{
+						"Content-Type": ctPattern,
+					},
 				},
 				Merge: map[string]any{"tag": "processed"},
 			},
@@ -83,9 +90,10 @@ func TestProcessResponseHeaderFilter(t *testing.T) {
 	}
 
 	headers := map[string]string{"Content-Type": "application/json"}
+	query := map[string]string{}
 	body := map[string]any{"message": "hi"}
 
-	modified, applied := ProcessResponse(body, headers, compiled, 0, "", "")
+	modified, applied := ProcessResponse(body, headers, query, compiled, 0, "", "")
 	if !modified {
 		t.Fatal("expected response to be modified")
 	}
@@ -99,7 +107,7 @@ func TestProcessResponseHeaderFilter(t *testing.T) {
 	// Negative header match should no-op
 	headers["Content-Type"] = "text/plain"
 	body = map[string]any{"message": "hi"}
-	modified, _ = ProcessResponse(body, headers, compiled, 0, "", "")
+	modified, _ = ProcessResponse(body, headers, query, compiled, 0, "", "")
 	if modified {
 		t.Fatal("expected no modification for non-matching headers")
 	}
@@ -110,7 +118,7 @@ func TestProcessResponseHeaderFilter(t *testing.T) {
 	// Sanity: ensure Matches ignores header casing
 	headers = map[string]string{"Content-Type": "Application/Json"}
 	body = map[string]any{"message": "hi"}
-	if modified, _ := ProcessResponse(body, headers, compiled, 0, "", ""); !modified {
+	if modified, _ := ProcessResponse(body, headers, query, compiled, 0, "", ""); !modified {
 		t.Fatal("expected case-insensitive header match to modify response")
 	}
 	if body["tag"] != "processed" {

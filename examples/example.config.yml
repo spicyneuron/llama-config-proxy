@@ -1,26 +1,143 @@
-# Example OpenAI-compatible chat completions proxy
+# Example llama-matchmaker configuration
 
 proxy:
-  - listen: localhost:8081 # Where the proxy listens
-    target: http://localhost:8080 # Upstream (llama.cpp/LM Studio/anything OpenAI-like)
-    timeout: 60s # Per-request timeout
-    # ssl_cert: "cert.pem"               # Enable both ssl_cert and ssl_key to serve HTTPS
+  - listen: localhost:8081
+    target: http://localhost:8080
+    timeout: 60s
+    # ssl_cert: "cert.pem"
     # ssl_key: "key.pem"
+    debug: false
 
     routes:
+      # Basic operations: default, merge, delete
       - methods: POST
-        paths: ^/v1/chat/completions$ # Match the standard chat endpoint
-        # target_path: /api/chat         # Uncomment to rewrite to a different upstream path
+        paths: ^/v1/chat/completions$
 
         on_request:
           - default:
-              model: gemma3 # Set defaults if the client omits a parameter
               temperature: 0.7
+              max_tokens: 2048
+
           - merge:
-              max_tokens: 512 # Set or override a parameter
+              stream: false
+
           - delete:
-              - debug # Strip client-provided parameters
+              - debug
+              - internal_id
 
         on_response:
           - merge:
               served_by: llama-matchmaker
+
+      # Matching: when conditions
+      - methods: POST
+        paths: ^/v1/chat$
+
+        on_request:
+          # Match on body field
+          - when:
+              body: { model: "deepseek" }
+            merge:
+              temperature: 0.6
+              top_p: 0.95
+
+          # Match on query params: /v1/chat?provider=openai
+          - when:
+              query: { provider: "openai" }
+            merge:
+              max_tokens: 4096
+
+          # Match on headers (case-insensitive)
+          - when:
+              headers: { X-API-Version: "^v2" }
+            merge:
+              use_v2_api: true
+
+          # Implicit AND: all conditions must match
+          - when:
+              body: { model: "gpt-4" }
+              query: { tier: "premium" }
+              headers: { Authorization: "Bearer.*" }
+            merge:
+              priority: high
+
+          # OR using when_any (sugar for simple OR cases)
+          - when_any:
+              - body: { model: "gpt-4" }
+              - body: { model: "claude-3" }
+              - body: { model: "gemini-pro" }
+            merge:
+              max_tokens: 8192
+
+          # NOT: exclude condition
+          - when:
+              not:
+                body: { stream: "true" }
+            merge:
+              enable_cache: true
+
+          # Complex: (A OR B) AND NOT C
+          - when:
+              and:
+                - or:
+                    - body: { model: "gpt-4" }
+                    - query: { provider: "openai" }
+                - not:
+                    body: { stream: "true" }
+            merge:
+              cacheable: true
+
+          # Regex alternation
+          - when:
+              body: { model: "qwen-?3|gemma-?3|llama-?3" }
+            merge:
+              temperature: 0.7
+              top_k: 20
+
+          # Stop: halt further action processing
+          - when:
+              body: { model: "premium-.*" }
+            merge:
+              max_tokens: 32768
+            stop: true
+
+          # Only runs if stop didn't trigger above
+          - merge:
+              max_tokens: 2048
+
+      # Templates for dynamic transformations
+      - methods: POST
+        paths: ^/v1/transform$
+
+        on_request:
+          - template: |
+              {
+                "model": "{{ .model | default "gemma3" }}",
+                "messages": {{ toJson .messages }},
+                "temperature": {{ .temperature | default 0.7 }},
+                "request_id": "{{ uuid }}",
+                "timestamp": "{{ now | isoTime }}"
+              }
+
+      # Path rewriting and includes
+      - methods: POST
+        paths: ^/api/legacy/chat$
+        target_path: /v1/chat/completions
+
+        on_request:
+          - when:
+              body: { model: "^default$" }
+            merge:
+              model: gemma3
+
+          # Include external rules
+          - include: ./rules-chat-models.yml
+
+  # Multiple proxies
+  - listen: localhost:8082
+    target: http://localhost:9000
+    routes:
+      - methods: POST
+        paths: ^/v1/embeddings$
+        on_request:
+          - default: { model: "text-embedding-3-small" }
